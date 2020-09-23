@@ -1,0 +1,1 @@
+org.springframework.boot.autoconfigure.EnableAutoConfiguration=no.ruter.sb.grunnplattform.commons.kafka.async.consumer.AsyncConsumerModuleAutoConfig

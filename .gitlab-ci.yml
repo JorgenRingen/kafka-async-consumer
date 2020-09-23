@@ -1,0 +1,4 @@
+include:
+  - project: 'ruter-as/sb/devops/sb-pipeline'
+    ref: master
+    file: '/library-pipeline.yml'
