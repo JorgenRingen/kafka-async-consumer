@@ -14,7 +14,9 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Polls kafka and delegates processing of records to separate async threads.
- * Instances of this class should be run in a separate thread.
+ * Instances of this class should be run in a separate thread and typically
+ * one instance will be run per application-instance consuming from one or
+ * more topics.
  *
  * The consumer waits in the poll-loop if "workQueueSize > workQueueSizeLimit" to avoid overloading the
  * executorService with tasks. However, if the consumer waits to long it might be considered failed by kafka.
