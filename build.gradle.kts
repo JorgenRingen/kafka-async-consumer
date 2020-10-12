@@ -65,15 +65,6 @@ tasks.withType<JacocoReport> {
 
 tasks.withType<Test> {
     useJUnitPlatform()
-//    testLogging {
-//        showCauses = true
-//        showExceptions = true
-//        showStackTraces = true
-//        showStandardStreams = true
-//    }
-//    reports.html.isEnabled = false
-//    reports.junitXml.isEnabled = true
-//    finalizedBy("jacocoTestReport")
 }
 
 val compileKotlin: KotlinCompile by tasks

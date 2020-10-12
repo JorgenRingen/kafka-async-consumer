@@ -12,7 +12,9 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.ThreadFactory
 import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.atomic.AtomicInteger
 
 /**
  * Expects the application to provide:
@@ -33,14 +35,16 @@ class AsyncConsumerConfig(
 ) {
 
     @Bean(destroyMethod = "")
-    fun asyncConsumerExecutor(): ExecutorService = Executors.newFixedThreadPool(threads)
+    fun asyncConsumerExecutor(): ExecutorService =
+        Executors.newFixedThreadPool(threads, NamedThreadFactory("async-consumer-executor-thread"))
 
     @Bean(destroyMethod = "")
     fun monitoredAsyncConsumerExecutor(meterRegistry: MeterRegistry, asyncConsumerExecutor: ExecutorService) =
         TimedExecutorService(meterRegistry, asyncConsumerExecutor, "asyncConsumerExecutor", "", emptyList())
 
     @Bean(destroyMethod = "")
-    fun asyncConsumerListenerExecutor(): ExecutorService = Executors.newSingleThreadExecutor()
+    fun asyncConsumerListenerExecutor(): ExecutorService =
+        Executors.newSingleThreadExecutor(NamedThreadFactory("async-consumer-main-thread", appendThreadNum = false))
 
     @Bean
     fun executorServiceMetrics(asyncConsumerExecutor: ExecutorService) =

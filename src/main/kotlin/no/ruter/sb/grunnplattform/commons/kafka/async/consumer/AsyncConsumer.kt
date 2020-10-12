@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * more topics.
  *
  * The consumer waits in the poll-loop if "workQueueSize > workQueueSizeLimit" to avoid overloading the
- * executorService with tasks. However, if the consumer waits to long it might be considered failed by kafka.
+ * executorService with tasks. Assigned partitions are paused while waiting.
  *
  * The following parameters needs to be tuned with care for each use-case:
  * - `max.poll.interval.ms`: KafkaConsumer - Waiting for the work-queue to drain must not exceed this limit.
@@ -56,6 +56,8 @@ class AsyncConsumer(
 
     private val stopped = AtomicBoolean(false)
     private val submittedAllRecords = AtomicBoolean(false)
+
+    private val consumerRebalanceListener = AsyncConsumerRebalanceListener()
 
     fun stop() {
         this.stopped.set(true)
@@ -127,34 +129,49 @@ class AsyncConsumer(
     /**
      * Checks the work-queue size. If it's above the max-size we wait.
      * This is done so we don't overload the work-queue with new records.
+     * Pauses the kafka-consumer while waiting.
      */
     private fun checkWorkQueueSize() {
         val waitingStarted = System.currentTimeMillis()
-        var didWait = false
         val initialWorkQueueSize = workQueue.size
         while (workQueue.size > maxWorkQueueSize && !stopped.get()) {
             Thread.sleep(fullWorkQueueWaitMillis)
-            didWait = true
+            consumer.pause(consumerRebalanceListener.getAssignedPartitions())
             logger.trace("Polling paused due to workQueueSize=${workQueue.size} >= maxQueueSize=${maxWorkQueueSize}")
         }
 
-        if (didWait) {
+        val pausedPartitions = consumer.paused()
+        if (pausedPartitions.isNotEmpty()) {
+            consumer.resume(pausedPartitions)
             logger.info("Polling was paused for ${System.currentTimeMillis() - waitingStarted} milliseconds due to workQueueSize=$initialWorkQueueSize >= maxWorkQueueSize=$maxWorkQueueSize")
         }
     }
 
-    /**
-     * Subscribes to provided topics and adds a ConsumerRebalanceListener
-     */
     private fun subscribeToTopics() {
-        consumer.subscribe(topics, object : ConsumerRebalanceListener {
-            override fun onPartitionsAssigned(partitions: MutableCollection<TopicPartition>?) {
-                logger.debug("Partitions assigned: $partitions")
-            }
+        consumer.subscribe(topics, this.consumerRebalanceListener)
+    }
 
-            override fun onPartitionsRevoked(partitions: MutableCollection<TopicPartition>?) {
-                logger.debug("Partitions revoked: $partitions")
-            }
-        })
+    /**
+     * Keeps track of assigned partitions so we can pause during consumption
+     */
+    inner class AsyncConsumerRebalanceListener : ConsumerRebalanceListener {
+
+        private val logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass())
+
+        private val assignedPartitions = mutableSetOf<TopicPartition>()
+
+        override fun onPartitionsAssigned(partitions: MutableCollection<TopicPartition>) {
+            logger.debug("Partitions assigned: $partitions")
+            assignedPartitions.addAll(partitions.toSet())
+        }
+
+        override fun onPartitionsRevoked(partitions: MutableCollection<TopicPartition>) {
+            logger.debug("Partitions revoked: $partitions")
+            assignedPartitions.removeAll(assignedPartitions)
+        }
+
+        fun getAssignedPartitions(): Set<TopicPartition> {
+            return assignedPartitions.toSet()
+        }
     }
 }
