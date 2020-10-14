@@ -15,6 +15,7 @@ group = "no.ruter.sb.grunnplattform.commons"
 java.sourceCompatibility = JavaVersion.VERSION_1_8
 
 repositories {
+    mavenLocal()
     mavenCentral()
     maven(url = "https://packages.confluent.io/maven/")
     maven(url = "https://nexus.dev.transhub.io/nexus/content/repositories/releases")
