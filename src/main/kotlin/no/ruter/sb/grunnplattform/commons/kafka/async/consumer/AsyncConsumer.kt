@@ -111,9 +111,10 @@ class AsyncConsumer(
     }
 
     private fun submitForProcessing(consumerRecords: ConsumerRecords<out Any, out Any>) {
-        consumerRecords.forEach {
-            val task = taskSupplier.getTask(it)
-            executorService.submit(task)
+        consumerRecords.forEach { consumerRecord->
+            taskSupplier.getTask(consumerRecord)?.let { task ->
+                executorService.submit(task)
+            }
         }
         logger.debug("Submitted ${consumerRecords.count()} consumer-records for processing")
     }

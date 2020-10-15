@@ -8,5 +8,5 @@ import org.apache.kafka.clients.consumer.ConsumerRecord
  * ConsumerRecords
  */
 interface AsyncConsumerTaskSupplier {
-    fun getTask(consumerRecord: ConsumerRecord<*, *>): AsyncConsumerTask
+    fun getTask(consumerRecord: ConsumerRecord<*, *>): AsyncConsumerTask?
 }
