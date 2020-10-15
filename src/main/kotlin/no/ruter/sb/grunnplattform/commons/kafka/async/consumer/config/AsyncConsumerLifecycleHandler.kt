@@ -5,6 +5,7 @@ import no.ruter.sb.grunnplattform.commons.kafka.async.consumer.AsyncConsumerGrac
 import org.springframework.boot.context.event.ApplicationStartedEvent
 import org.springframework.context.event.EventListener
 import java.util.concurrent.ExecutorService
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.annotation.PreDestroy
 
 /**
@@ -13,17 +14,24 @@ import javax.annotation.PreDestroy
 class AsyncConsumerLifecycleHandler(
     private val asyncConsumer: AsyncConsumer,
     private val asyncConsumerGracefulShutdown: AsyncConsumerGracefulShutdown,
-    private val asyncConsumerListenerExecutor: ExecutorService
+    private val mainExecutor: ExecutorService
 ) {
+
+    companion object {
+        val started = AtomicBoolean(false)
+    }
 
     @EventListener
     fun applicationStarted(applicationStartedEvent: ApplicationStartedEvent) {
-        asyncConsumerListenerExecutor.submit(asyncConsumer)
+        mainExecutor.submit(asyncConsumer)
+        started.set(true)
     }
 
     @PreDestroy
     fun preDestroy() {
-        asyncConsumerGracefulShutdown.shutdown()
-        asyncConsumerListenerExecutor.shutdown()
+        if (started.get()) {
+            asyncConsumerGracefulShutdown.shutdown()
+            mainExecutor.shutdown()
+        }
     }
 }

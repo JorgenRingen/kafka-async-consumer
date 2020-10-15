@@ -1,5 +1,6 @@
 package no.ruter.sb.grunnplattform.commons.kafka.async.consumer
 
+import org.apache.kafka.clients.consumer.Consumer
 import org.apache.kafka.clients.consumer.ConsumerRecords
 import org.apache.kafka.clients.consumer.KafkaConsumer
 import org.apache.kafka.common.errors.SerializationException
@@ -41,7 +42,7 @@ import java.util.concurrent.atomic.AtomicBoolean
  * @param taskSupplier Provides Runnables for processing consumer-records
  */
 class AsyncConsumer(
-    private val consumer: KafkaConsumer<*, *>,
+    private val consumer: Consumer<*, *>,
     private val topics: List<String>,
     private val executorService: ExecutorService,
     private val workQueue: BlockingQueue<Runnable>,

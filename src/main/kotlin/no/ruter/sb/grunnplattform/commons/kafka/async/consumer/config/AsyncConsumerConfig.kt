@@ -6,13 +6,12 @@ import io.micrometer.core.instrument.internal.TimedExecutorService
 import no.ruter.sb.grunnplattform.commons.kafka.async.consumer.AsyncConsumer
 import no.ruter.sb.grunnplattform.commons.kafka.async.consumer.AsyncConsumerGracefulShutdown
 import no.ruter.sb.grunnplattform.commons.kafka.async.consumer.AsyncConsumerTaskSupplier
+import org.apache.kafka.clients.consumer.Consumer
 import org.apache.kafka.clients.consumer.KafkaConsumer
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.beans.factory.annotation.Value
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import java.lang.invoke.MethodHandles
@@ -27,14 +26,13 @@ import java.util.concurrent.ThreadPoolExecutor
  * - a bean of type AsyncConsumerTaskSupplier that returns "Runnables" which will process consumer-records
  */
 @ConditionalOnClass(KafkaConsumer::class)
-@ConditionalOnBean(name = ["asyncKafkaConsumer"])
 @Configuration
 class AsyncConsumerConfig(
     @Value("\${kafka.async.consumer.threads}") private val threads: Int,
     @Value("\${kafka.async.consumer.bufferSize}") private val bufferSize: Int,
     @Value("\${kafka.async.consumer.fullBufferWaitMillis}") private val fullBufferWaitMillis: Long,
     @Value("\${kafka.async.consumer.topics}") private val topics: List<String>,
-    @Qualifier("asyncKafkaConsumer") private val asyncKafkaConsumer: KafkaConsumer<*, *>,
+    @Qualifier("asyncKafkaConsumer") private val asyncKafkaConsumer: Consumer<*, *>,
     private val asyncConsumerTaskSupplier: AsyncConsumerTaskSupplier
 ) {
 
