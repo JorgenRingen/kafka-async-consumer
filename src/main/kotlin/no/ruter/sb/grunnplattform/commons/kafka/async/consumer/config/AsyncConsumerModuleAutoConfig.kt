@@ -1,4 +1,4 @@
-package no.ruter.sb.grunnplattform.commons.kafka.async.consumer
+package no.ruter.sb.grunnplattform.commons.kafka.async.consumer.config
 
 import org.springframework.beans.factory.annotation.Configurable
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan

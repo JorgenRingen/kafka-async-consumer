@@ -24,7 +24,7 @@ class TestApplication {
         put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest")
         put(ConsumerConfig.ALLOW_AUTO_CREATE_TOPICS_CONFIG, true)
         put(ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG, false)
-        put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 50)
+        put(ConsumerConfig.MAX_POLL_RECORDS_CONFIG, 10)
     })
 
     @Bean

@@ -3,12 +3,11 @@ package no.ruter.sb.grunnplattform.commons.kafka.async.consumer
 import org.slf4j.LoggerFactory
 import java.lang.invoke.MethodHandles
 import java.util.concurrent.ExecutorService
-import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
 
-class AsyncConsumerShutdown(
+class AsyncConsumerGracefulShutdown(
     private val asyncConsumer: AsyncConsumer,
-    private val asyncConsumerExecutor: ExecutorService
+    private val parallelExecutor: ExecutorService
 ) {
 
     private val logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass())
@@ -21,31 +20,31 @@ class AsyncConsumerShutdown(
      */
     fun shutdown() {
 
-        logger.info("Shutting down AsyncConsumerProcessor...")
+        logger.info("Shutting down AsyncConsumer...")
 
         asyncConsumer.stop()
 
         waitForAsyncConsumerToSubmitAllConsumedRecords()
 
-        shutdownAsyncConsumerExecutorGracefully()
+        shutdownParallelExecutorGracefully()
 
         logger.info("Shutdown of AsyncConsumerProcessor completed!")
     }
 
     private fun waitForAsyncConsumerToSubmitAllConsumedRecords() {
-        while (asyncConsumer.submittedAllRecords()) {
+        while (!asyncConsumer.submittedAllRecords()) {
             logger.debug("Waiting for AsyncConsumerProcessor to submit remaining records...")
-            Thread.sleep(2500)
+            Thread.sleep(1000)
         }
     }
 
-    private fun shutdownAsyncConsumerExecutorGracefully() {
+    private fun shutdownParallelExecutorGracefully() {
         kotlin.runCatching {
-            logger.debug("Shutting down executor-service...")
-            asyncConsumerExecutor.shutdown()
+            logger.debug("Shutting down processing thread-pool...")
+            parallelExecutor.shutdown()
 
-            while (!asyncConsumerExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
-                logger.debug("Awaiting termination... Tasks remaining: ${(asyncConsumerExecutor as ThreadPoolExecutor).queue.size}")
+            while (!parallelExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
+                logger.debug("Awaiting termination... Tasks remaining: ${asyncConsumer.bufferedCount()}")
             }
 
         }.onFailure {
@@ -56,9 +55,9 @@ class AsyncConsumerShutdown(
     }
 
     private fun forceShutdown() {
-        val rejectedTasks = asyncConsumerExecutor.shutdownNow()
+        val rejectedTasks = parallelExecutor.shutdownNow()
         if (rejectedTasks.size > 0) {
-            logger.warn("${rejectedTasks.size} rejected tasks after shutdown! This might lead to unprocessed messages!")
+            logger.error("${rejectedTasks.size} rejected tasks after shutdown! This might lead to unprocessed messages!")
             rejectedTasks.forEach {
                 logger.warn("Rejected task: $it")
             }

@@ -21,8 +21,8 @@ import org.springframework.kafka.test.context.EmbeddedKafka
 import java.time.Duration
 import java.util.*
 
-// needs to be open on machine where test is running
-const val EMBEDDED_KAFKA_PORT = 9099
+// needs to be open on machine where test is running (todo: fix mor stable solution)
+const val EMBEDDED_KAFKA_PORT = 9098
 
 val taskSupplierMock = mockk<AsyncConsumerTaskSupplier>()
 
@@ -32,8 +32,8 @@ val taskSupplierMock = mockk<AsyncConsumerTaskSupplier>()
     properties = [
         "kafka.async.consumer.enabled=true",
         "kafka.async.consumer.threads=2",
-        "kafka.async.consumer.maxWorkQueueSize=10",
-        "kafka.async.consumer.fullWorkQueueSleepMillis=100",
+        "kafka.async.consumer.bufferSize=10",
+        "kafka.async.consumer.fullBufferWaitMillis=100",
         "kafka.async.consumer.topics=foo,bar"
     ]
 )

@@ -1,4 +1,4 @@
-package no.ruter.sb.grunnplattform.commons.kafka.async.consumer
+package no.ruter.sb.grunnplattform.commons.kafka.async.consumer.config
 
 import java.util.concurrent.ThreadFactory
 import java.util.concurrent.atomic.AtomicInteger
