@@ -1,9 +1,8 @@
 package no.ruter.sb.grunnplattform.commons.kafka.async.consumer
 
-import org.apache.kafka.clients.consumer.Consumer
-import org.apache.kafka.clients.consumer.ConsumerRebalanceListener
 import org.apache.kafka.clients.consumer.ConsumerRecords
-import org.apache.kafka.common.TopicPartition
+import org.apache.kafka.clients.consumer.KafkaConsumer
+import org.apache.kafka.common.errors.SerializationException
 import org.apache.kafka.common.errors.WakeupException
 import org.slf4j.LoggerFactory
 import java.lang.invoke.MethodHandles
@@ -19,12 +18,11 @@ import java.util.concurrent.atomic.AtomicBoolean
  * more topics.
  *
  * The consumer waits in the poll-loop if "workQueueSize > workQueueSizeLimit" to avoid overloading the
- * executorService with tasks. However, if the consumer waits to long it might be considered failed by kafka.
+ * executorService with tasks. Assigned partitions are paused while waiting.
  *
  * The following parameters needs to be tuned with care for each use-case:
- * - `max.poll.interval.ms`: KafkaConsumer - Waiting for the work-queue to drain must not exceed this limit.
  * - `max.poll.records`: KafkaConsumer - How many records will be submitted to the work-queue for each poll.
- * - `maxWorkQueueSize`: AsyncConsumer - How big can the work-queue grow? Unbounded growth might lead to resource drain
+ * - `bufferSize`: AsyncConsumer - How big can the work-queue grow? Unbounded growth might lead to resource drain
  * and long latency. Scaling number of services running AsyncConsumer might be preferable to a big maxWorkQueueSize.
  *
  * NB!
@@ -38,17 +36,17 @@ import java.util.concurrent.atomic.AtomicBoolean
  * @param executorService The ExecutorService which handles processing in a thread-pool
  *      Thread-pool should support an unbounded queue to avoid message-drops and rejection of tasks.
  * @param workQueue The work-queue backing the ExecutorService
- * @param maxWorkQueueSize Max number of tasks in the work-queue. Will stop polling if work-queue size exceeds this number.
- * @param fullWorkQueueWaitMillis How long to wait between each time work-queue limit is checked
+ * @param bufferSize Max number of tasks in the work-queue. Will stop polling if work-queue size exceeds this number.
+ * @param fullBufferWaitMillis How long to wait between each time work-queue limit is checked
  * @param taskSupplier Provides Runnables for processing consumer-records
  */
 class AsyncConsumer(
-    private val consumer: Consumer<*, *>,
+    private val consumer: KafkaConsumer<*, *>,
     private val topics: List<String>,
     private val executorService: ExecutorService,
     private val workQueue: BlockingQueue<Runnable>,
-    private val maxWorkQueueSize: Int,
-    private val fullWorkQueueWaitMillis: Long,
+    private val bufferSize: Int,
+    private val fullBufferWaitMillis: Long,
     private val taskSupplier: AsyncConsumerTaskSupplier
 ) : Runnable {
 
@@ -57,12 +55,12 @@ class AsyncConsumer(
     private val stopped = AtomicBoolean(false)
     private val submittedAllRecords = AtomicBoolean(false)
 
+    private val consumerRebalanceListener = AsyncConsumerRebalanceListener()
+
     fun stop() {
         this.stopped.set(true)
         this.consumer.wakeup()
     }
-
-    fun submittedAllRecords() = this.submittedAllRecords.get()
 
     override fun run() {
         try {
@@ -70,7 +68,8 @@ class AsyncConsumer(
 
             while (!stopped.get()) {
                 val consumerRecords = pollRecords()
-                submitRecords(consumerRecords)
+
+                submitForProcessing(consumerRecords)
 
                 commitOffsets()
 
@@ -79,16 +78,17 @@ class AsyncConsumer(
                     break
                 }
 
-                checkWorkQueueSize()
+                waitForBufferToDrain()
             }
-        } catch (we: WakeupException) {
+        } catch (we: WakeupException) { // thrown if a long-poll was aborted when stopping
             if (!stopped.get()) {
                 logger.error("Received WakeupException, but was not stopped!", we)
                 throw we
             }
-        } catch (e: Exception) {
+            this.submittedAllRecords.set(true)
+        } catch (e: Exception) { // on errors in the "poll-loop" (should not happen)
             logger.error("Error while running AsyncConsumerProcessor", e)
-        } finally {
+        } finally { // cleanup
             try {
                 logger.debug("Closing kafka-consumer")
                 consumer.close()
@@ -99,12 +99,18 @@ class AsyncConsumer(
     }
 
     private fun pollRecords(): ConsumerRecords<out Any, out Any> {
-        val consumerRecords = consumer.poll(Duration.ofMillis(Long.MAX_VALUE))
+        val consumerRecords = try {
+            consumer.poll(Duration.ofMillis(Long.MAX_VALUE))
+        } catch (e: SerializationException) {
+            logger.error("SerializationException while consuming records - Records are skipped!", e)
+            return ConsumerRecords.EMPTY
+        }
+
         logger.debug("Polled ${consumerRecords.count()} consumer-records")
         return consumerRecords
     }
 
-    private fun submitRecords(consumerRecords: ConsumerRecords<out Any, out Any>) {
+    private fun submitForProcessing(consumerRecords: ConsumerRecords<out Any, out Any>) {
         consumerRecords.forEach {
             val task = taskSupplier.getTask(it)
             executorService.submit(task)
@@ -125,36 +131,36 @@ class AsyncConsumer(
     }
 
     /**
-     * Checks the work-queue size. If it's above the max-size we wait.
-     * This is done so we don't overload the work-queue with new records.
+     * Checks the number of buffered tasks. If it's above the max-size we wait.
+     * This is done so we don't overload the work-queue with new records (backpressure)
+     * Pauses the kafka-consumer while waiting.
      */
-    private fun checkWorkQueueSize() {
+    private fun waitForBufferToDrain() {
+        val initialBufferCount = bufferedCount()
         val waitingStarted = System.currentTimeMillis()
-        var didWait = false
-        val initialWorkQueueSize = workQueue.size
-        while (workQueue.size > maxWorkQueueSize && !stopped.get()) {
-            Thread.sleep(fullWorkQueueWaitMillis)
-            didWait = true
-            logger.trace("Polling paused due to workQueueSize=${workQueue.size} >= maxQueueSize=${maxWorkQueueSize}")
+
+        while (bufferIsOverloaded() && !stopped.get()) {
+            consumer.pause(consumerRebalanceListener.getAssignedPartitions())
+            logger.debug("Polling paused due to workQueueSize=${workQueue.size} >= maxQueueSize=${bufferSize}")
+            runCatching { Thread.sleep(fullBufferWaitMillis) }
+                .onFailure { logger.warn("Caught exception while waiting for buffer to drain", it) }
         }
 
-        if (didWait) {
-            logger.info("Polling was paused for ${System.currentTimeMillis() - waitingStarted} milliseconds due to workQueueSize=$initialWorkQueueSize >= maxWorkQueueSize=$maxWorkQueueSize")
+        val pausedPartitions = consumer.paused()
+        if (pausedPartitions.isNotEmpty()) {
+            consumer.resume(pausedPartitions)
+            logger.debug("Polling was paused for ${System.currentTimeMillis() - waitingStarted} milliseconds due to workQueueSize=$initialBufferCount >= maxWorkQueueSize=$bufferSize")
         }
     }
 
-    /**
-     * Subscribes to provided topics and adds a ConsumerRebalanceListener
-     */
     private fun subscribeToTopics() {
-        consumer.subscribe(topics, object : ConsumerRebalanceListener {
-            override fun onPartitionsAssigned(partitions: MutableCollection<TopicPartition>?) {
-                logger.debug("Partitions assigned: $partitions")
-            }
-
-            override fun onPartitionsRevoked(partitions: MutableCollection<TopicPartition>?) {
-                logger.debug("Partitions revoked: $partitions")
-            }
-        })
+        consumer.subscribe(topics, this.consumerRebalanceListener)
     }
+
+    private fun bufferIsOverloaded() = bufferedCount() > bufferSize
+
+    fun bufferedCount() = workQueue.size
+
+    fun submittedAllRecords(): Boolean = submittedAllRecords.get()
+
 }

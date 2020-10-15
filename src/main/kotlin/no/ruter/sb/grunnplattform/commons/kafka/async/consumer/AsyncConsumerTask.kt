@@ -18,7 +18,7 @@ abstract class AsyncConsumerTask(private val consumerRecord: ConsumerRecord<*, *
         kotlin.runCatching {
             process(consumerRecord)
         }.onFailure {
-            logger.warn("Caught exception while processing record! Implementations should handle any exceptions.", it)
+            logger.error("Exception while processing record - Should be handled by the implementation. ConsumerRecord: $consumerRecord.", it)
         }
     }
 

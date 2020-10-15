@@ -1,5 +1,7 @@
-package no.ruter.sb.grunnplattform.commons.kafka.async.consumer
+package no.ruter.sb.grunnplattform.commons.kafka.async.consumer.config
 
+import no.ruter.sb.grunnplattform.commons.kafka.async.consumer.AsyncConsumer
+import no.ruter.sb.grunnplattform.commons.kafka.async.consumer.AsyncConsumerGracefulShutdown
 import org.springframework.boot.context.event.ApplicationStartedEvent
 import org.springframework.context.event.EventListener
 import java.util.concurrent.ExecutorService
@@ -10,7 +12,7 @@ import javax.annotation.PreDestroy
  */
 class AsyncConsumerLifecycleHandler(
     private val asyncConsumer: AsyncConsumer,
-    private val asyncConsumerShutdown: AsyncConsumerShutdown,
+    private val asyncConsumerGracefulShutdown: AsyncConsumerGracefulShutdown,
     private val asyncConsumerListenerExecutor: ExecutorService
 ) {
 
@@ -21,7 +23,7 @@ class AsyncConsumerLifecycleHandler(
 
     @PreDestroy
     fun preDestroy() {
-        asyncConsumerShutdown.shutdown()
+        asyncConsumerGracefulShutdown.shutdown()
         asyncConsumerListenerExecutor.shutdown()
     }
 }

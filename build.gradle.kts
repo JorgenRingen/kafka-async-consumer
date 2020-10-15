@@ -15,6 +15,7 @@ group = "no.ruter.sb.grunnplattform.commons"
 java.sourceCompatibility = JavaVersion.VERSION_1_8
 
 repositories {
+    mavenLocal()
     mavenCentral()
     maven(url = "https://packages.confluent.io/maven/")
     maven(url = "https://nexus.dev.transhub.io/nexus/content/repositories/releases")
@@ -65,15 +66,6 @@ tasks.withType<JacocoReport> {
 
 tasks.withType<Test> {
     useJUnitPlatform()
-//    testLogging {
-//        showCauses = true
-//        showExceptions = true
-//        showStackTraces = true
-//        showStandardStreams = true
-//    }
-//    reports.html.isEnabled = false
-//    reports.junitXml.isEnabled = true
-//    finalizedBy("jacocoTestReport")
 }
 
 val compileKotlin: KotlinCompile by tasks

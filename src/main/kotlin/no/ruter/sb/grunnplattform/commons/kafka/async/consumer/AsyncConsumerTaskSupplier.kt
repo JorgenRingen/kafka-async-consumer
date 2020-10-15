@@ -4,8 +4,8 @@ import org.apache.kafka.clients.consumer.ConsumerRecord
 
 /**
  * Application should implement this interface so that the AsyncConsumer
- * can retrieve tasks (runnables) which will process consumer-records
- * async in a separate thread.
+ * can retrieve AsyncConsumerTasks which is responsible of processing
+ * ConsumerRecords
  */
 interface AsyncConsumerTaskSupplier {
     fun getTask(consumerRecord: ConsumerRecord<*, *>): AsyncConsumerTask
