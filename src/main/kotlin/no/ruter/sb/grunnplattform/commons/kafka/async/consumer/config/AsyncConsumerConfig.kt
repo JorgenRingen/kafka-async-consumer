@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import java.lang.invoke.MethodHandles
@@ -26,6 +27,7 @@ import java.util.concurrent.ThreadPoolExecutor
  * - a bean of type AsyncConsumerTaskSupplier that returns "Runnables" which will process consumer-records
  */
 @ConditionalOnClass(KafkaConsumer::class)
+@ConditionalOnProperty("kafka.async.consumer.enabled", havingValue = "true", matchIfMissing = true)
 @Configuration
 class AsyncConsumerConfig(
     @Value("\${kafka.async.consumer.threads}") private val threads: Int,
