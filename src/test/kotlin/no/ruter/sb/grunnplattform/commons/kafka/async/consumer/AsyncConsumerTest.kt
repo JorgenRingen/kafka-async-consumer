@@ -110,7 +110,8 @@ class TestApplication {
             topics = listOf("foo", "bar"),
             consumer = asyncKafkaConsumer(),
             taskSupplier = taskSupplierMock,
-            meterRegistry = SimpleMeterRegistry()
+            meterRegistry = SimpleMeterRegistry(),
+            closeResources = { println("Closing application resources") }
         )
     }
 
