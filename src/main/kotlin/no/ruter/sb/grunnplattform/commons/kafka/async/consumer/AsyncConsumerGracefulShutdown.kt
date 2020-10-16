@@ -8,7 +8,7 @@ import java.util.concurrent.TimeUnit
 class AsyncConsumerGracefulShutdown(
     private val asyncConsumer: AsyncConsumer,
     private val parallelExecutor: ExecutorService,
-    private val closeApplicationResources: () -> Unit
+    private val closeApplicationResources: () -> Unit,
 ) {
 
     private val logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass())
