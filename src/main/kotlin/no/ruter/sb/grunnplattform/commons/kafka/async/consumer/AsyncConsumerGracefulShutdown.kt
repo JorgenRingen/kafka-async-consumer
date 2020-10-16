@@ -44,7 +44,7 @@ class AsyncConsumerGracefulShutdown(
             parallelExecutor.shutdown()
 
             while (!parallelExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
-                logger.debug("Awaiting termination... Tasks remaining: ${asyncConsumer.bufferedCount()}")
+                logger.info("Awaiting termination... Tasks remaining: ${asyncConsumer.bufferedCount()}")
             }
 
         }.onFailure {
