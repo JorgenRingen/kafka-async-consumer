@@ -1,18 +1,11 @@
 package no.ruter.sb.grunnplattform.commons.kafka.async.consumer.config
 
-import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.binder.jvm.ExecutorServiceMetrics
 import io.micrometer.core.instrument.internal.TimedExecutorService
 import no.ruter.sb.grunnplattform.commons.kafka.async.consumer.AsyncConsumer
 import no.ruter.sb.grunnplattform.commons.kafka.async.consumer.AsyncConsumerGracefulShutdown
-import no.ruter.sb.grunnplattform.commons.kafka.async.consumer.AsyncConsumerTaskSupplier
-import org.apache.kafka.clients.consumer.Consumer
-import org.apache.kafka.clients.consumer.KafkaConsumer
 import org.slf4j.LoggerFactory
-import org.springframework.beans.factory.annotation.Qualifier
-import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import java.lang.invoke.MethodHandles
@@ -21,29 +14,17 @@ import java.util.concurrent.Executors
 import java.util.concurrent.ThreadPoolExecutor
 
 /**
- * Expects the application to provide:
- * - all "kafka.async.consumer.*"-properties declared in constructor
- * - a bean of type KafkaConsumer that's named "asyncKafkaConsumer"
- * - a bean of type AsyncConsumerTaskSupplier that returns "Runnables" which will process consumer-records
+ * Expects the application to provide a bean of type AsyncConsumerRegistration to instantiate the AsyncConsumer
  */
-@ConditionalOnClass(KafkaConsumer::class)
-@ConditionalOnProperty("kafka.async.consumer.enabled", havingValue = "true", matchIfMissing = true)
+@ConditionalOnClass(AsyncConsumerRegistration::class)
 @Configuration
-class AsyncConsumerConfig(
-    @Value("\${kafka.async.consumer.threads}") private val threads: Int,
-    @Value("\${kafka.async.consumer.bufferSize}") private val bufferSize: Int,
-    @Value("\${kafka.async.consumer.fullBufferWaitMillis}") private val fullBufferWaitMillis: Long,
-    @Value("\${kafka.async.consumer.topics}") private val topics: List<String>,
-    @Qualifier("asyncKafkaConsumer") private val asyncKafkaConsumer: Consumer<*, *>,
-    private val asyncConsumerTaskSupplier: AsyncConsumerTaskSupplier
-) {
+class AsyncConsumerConfig(private val registration: AsyncConsumerRegistration) {
 
     private val logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass())
 
     init {
-        logger.debug("AsyncConsumerConfig initiated: [threads=$threads bufferSize=$bufferSize, fullBufferWaitMillis=$fullBufferWaitMillis, topics=$topics]")
+        logger.debug("AsyncConsumerConfig initiated with registration: $registration")
     }
-
 
     /**
      * Thread-pool which is responsible of running "tasks" (processing of ConsumerRecords in parallel).
@@ -51,21 +32,27 @@ class AsyncConsumerConfig(
      */
     @Bean(destroyMethod = "")
     fun parallelExecutor(): ExecutorService =
-        Executors.newFixedThreadPool(threads, NamedThreadFactory("async-consumer-parallel"))
+        Executors.newFixedThreadPool(registration.threads, NamedThreadFactory("async-consumer-parallel"))
 
     /**
      * Wraps and monitors the the async-consumer-main thread-pool
      */
     @Bean(destroyMethod = "")
-    fun monitoredParallelExecutor(meterRegistry: MeterRegistry) =
-        TimedExecutorService(meterRegistry, parallelExecutor(), "async-consumer-parallel-executor", "", emptyList())
+    fun monitoredParallelExecutor() =
+        TimedExecutorService(
+            registration.meterRegistry,
+            parallelExecutor(),
+            "async.consumer.parallel-executor",
+            "",
+            emptyList()
+        )
 
     /**
      * Provide metrics for the async-consumer processor pool
      */
     @Bean
     fun parallelExecutorMetrics() =
-        ExecutorServiceMetrics(parallelExecutor(), "async-consumer-parallel-executor", emptyList())
+        ExecutorServiceMetrics(parallelExecutor(), "async.consumer.parallel-executor", emptyList())
 
     /**
      * Single-threaded pool which is responsible of running AsyncConsumer in a separate thread.
@@ -79,13 +66,13 @@ class AsyncConsumerConfig(
         monitoredParallelExecutor: ExecutorService,
         parallelExecutor: ExecutorService
     ) = AsyncConsumer(
-        consumer = asyncKafkaConsumer,
-        topics = topics,
+        consumer = registration.consumer,
+        topics = registration.topics,
         executorService = monitoredParallelExecutor,
         workQueue = (parallelExecutor as ThreadPoolExecutor).queue,
-        bufferSize = bufferSize,
-        fullBufferWaitMillis = fullBufferWaitMillis,
-        taskSupplier = asyncConsumerTaskSupplier
+        bufferSize = registration.bufferSize,
+        fullBufferWaitMillis = registration.fullBufferWaitMillis,
+        taskSupplier = registration.taskSupplier
     )
 
     @Bean(destroyMethod = "")
