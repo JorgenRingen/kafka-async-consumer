@@ -79,7 +79,7 @@ class AsyncConsumerConfig(private val registration: AsyncConsumerRegistration) {
     fun asyncConsumerGracefulShutdown(
         asyncConsumer: AsyncConsumer,
         parallelExecutor: ExecutorService
-    ) = AsyncConsumerGracefulShutdown(asyncConsumer, parallelExecutor)
+    ) = AsyncConsumerGracefulShutdown(asyncConsumer, parallelExecutor, registration.closeResources)
 
     @Bean
     fun asyncConsumerLifecycleHandler(

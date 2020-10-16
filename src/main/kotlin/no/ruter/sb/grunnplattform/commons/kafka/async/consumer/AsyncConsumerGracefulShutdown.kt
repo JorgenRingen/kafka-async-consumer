@@ -7,7 +7,8 @@ import java.util.concurrent.TimeUnit
 
 class AsyncConsumerGracefulShutdown(
     private val asyncConsumer: AsyncConsumer,
-    private val parallelExecutor: ExecutorService
+    private val parallelExecutor: ExecutorService,
+    private val closeApplicationResources: () -> Unit
 ) {
 
     private val logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass())
@@ -17,6 +18,7 @@ class AsyncConsumerGracefulShutdown(
      * 1. stop the consumer to avoid fetching more records from kafka
      * 2. wait for fetched records to be submitted for processing
      * 3. wait for records submitted for processing to be completed
+     * 4. close any application-resources used by AsyncConsumerTasks
      */
     fun shutdown() {
 
@@ -27,6 +29,9 @@ class AsyncConsumerGracefulShutdown(
         waitForAsyncConsumerToSubmitAllConsumedRecords()
 
         shutdownParallelExecutorGracefully()
+
+        logger.debug("Closing application resources")
+        closeApplicationResources()
 
         logger.info("Shutdown of AsyncConsumerProcessor completed!")
     }
