@@ -36,6 +36,7 @@ dependencies {
 
     // spring
     implementation("org.springframework.boot:spring-boot-starter")
+    implementation("org.springframework.boot:spring-boot-starter-actuator")
 
     // micrometer
     implementation("io.micrometer:micrometer-core")

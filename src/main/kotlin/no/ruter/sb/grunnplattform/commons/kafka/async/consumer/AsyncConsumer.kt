@@ -54,6 +54,7 @@ class AsyncConsumer(
     private val logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass())
 
     private val stopped = AtomicBoolean(false)
+    private val healthy = AtomicBoolean(true)
     private val submittedAllRecords = AtomicBoolean(false)
 
     private val consumerRebalanceListener = AsyncConsumerRebalanceListener()
@@ -89,6 +90,7 @@ class AsyncConsumer(
             this.submittedAllRecords.set(true)
         } catch (e: Exception) { // on errors in the "poll-loop" (should not happen)
             logger.error("Error while running AsyncConsumerProcessor", e)
+            this.healthy.set(false)
         } finally { // cleanup
             try {
                 logger.debug("Closing kafka-consumer")
@@ -164,5 +166,7 @@ class AsyncConsumer(
     fun bufferedCount() = workQueue.size
 
     fun submittedAllRecords(): Boolean = submittedAllRecords.get()
+
+    fun isHealthy() = this.healthy.get()
 
 }
