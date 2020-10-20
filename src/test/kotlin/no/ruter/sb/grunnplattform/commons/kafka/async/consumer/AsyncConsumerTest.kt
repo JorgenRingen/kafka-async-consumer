@@ -46,7 +46,7 @@ class AsyncConsumerTest {
     @BeforeEach
     fun beforeEach() {
         class TestableAsyncConsumerTask(consumerRecord: ConsumerRecord<*, *>) : AsyncConsumerTask(consumerRecord) {
-            override fun process(consumerRecord: ConsumerRecord<*, *>) {
+            override fun doRun() {
                 processedRecords.add(consumerRecord)
                 Thread.sleep(10) // simulate processing taking time...
             }

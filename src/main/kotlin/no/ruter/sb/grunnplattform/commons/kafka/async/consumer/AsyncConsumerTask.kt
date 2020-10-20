@@ -10,17 +10,17 @@ import java.lang.invoke.MethodHandles
  *
  * NB: AsyncConsumer only handles "at-most-once" (i.e. no retries of failed records)
  */
-abstract class AsyncConsumerTask(private val consumerRecord: ConsumerRecord<*, *>) : Runnable {
+abstract class AsyncConsumerTask(val consumerRecord: ConsumerRecord<*, *>) : Runnable {
 
     private val logger = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass())
 
     override fun run() {
         kotlin.runCatching {
-            process(consumerRecord)
+            doRun()
         }.onFailure {
             logger.error("Exception while processing record - Should be handled by the implementation. ConsumerRecord: $consumerRecord.", it)
         }
     }
 
-    abstract fun process(consumerRecord: ConsumerRecord<*, *>)
+    abstract fun doRun()
 }
